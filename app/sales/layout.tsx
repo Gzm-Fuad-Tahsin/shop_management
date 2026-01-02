@@ -6,7 +6,7 @@ import { Topbar } from '@/components/topbar'
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default function SalesLayout({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
