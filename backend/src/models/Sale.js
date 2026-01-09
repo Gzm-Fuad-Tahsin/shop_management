@@ -2,9 +2,13 @@ import mongoose from "mongoose"
 
 const saleSchema = new mongoose.Schema(
   {
+    shop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Shop",
+      required: true,
+    },
     saleNumber: {
       type: String,
-      unique: true,
       required: true,
     },
     items: [
@@ -87,5 +91,8 @@ const saleSchema = new mongoose.Schema(
   },
   { timestamps: true },
 )
+
+// Compound unique index for saleNumber within each shop
+saleSchema.index({ shop: 1, saleNumber: 1 }, { unique: true })
 
 export default mongoose.model("Sale", saleSchema)

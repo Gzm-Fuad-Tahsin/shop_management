@@ -2,10 +2,14 @@ import mongoose from "mongoose"
 
 const categorySchema = new mongoose.Schema(
   {
+    shop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Shop",
+      required: true,
+    },
     name: {
       type: String,
       required: true,
-      unique: true,
     },
     description: String,
     parent: {
@@ -19,5 +23,8 @@ const categorySchema = new mongoose.Schema(
   },
   { timestamps: true },
 )
+
+// Compound unique index for name within each shop
+categorySchema.index({ shop: 1, name: 1 }, { unique: true })
 
 export default mongoose.model("Category", categorySchema)

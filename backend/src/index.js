@@ -9,6 +9,7 @@ import salesRoutes from "./routes/sales.js"
 import userRoutes from "./routes/users.js"
 import categoryRoutes from "./routes/categories.js"
 import customerRoutes from "./routes/customers.js"
+import shopRoutes from "./routes/shops.js"
 import { errorHandler } from "./middleware/errorHandler.js"
 import { rateLimiter } from "./middleware/rateLimiter.js"
 
@@ -37,6 +38,7 @@ mongoose
 
 // Routes
 app.use("/api/auth", authRoutes)
+app.use("/api/shops", shopRoutes)
 app.use("/api/products", productRoutes)
 app.use("/api/inventory", inventoryRoutes)
 app.use("/api/sales", salesRoutes)

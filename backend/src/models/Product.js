@@ -2,6 +2,11 @@ import mongoose from "mongoose"
 
 const productSchema = new mongoose.Schema(
   {
+    shop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Shop",
+      required: true,
+    },
     name: {
       type: String,
       required: true,
@@ -9,11 +14,9 @@ const productSchema = new mongoose.Schema(
     sku: {
       type: String,
       required: true,
-      unique: true,
     },
     barcode: {
       type: String,
-      unique: true,
       sparse: true,
     },
     description: String,
@@ -83,5 +86,8 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true },
 )
+
+// Compound unique index for sku within each shop
+productSchema.index({ shop: 1, sku: 1 }, { unique: true })
 
 export default mongoose.model("Product", productSchema)

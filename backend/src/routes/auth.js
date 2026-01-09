@@ -26,7 +26,7 @@ router.post("/register", async (req, res) => {
       email,
       password,
       role: role || "staff",
-      approvalStatus: "pending",
+      approvalStatus: role === "manager" ? "pending" : "pending",
     })
 
     await user.save()
@@ -57,7 +57,7 @@ router.post("/login", async (req, res) => {
     }
 
     // Check user
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email }).populate("shop")
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" })
     }
@@ -80,7 +80,7 @@ router.post("/login", async (req, res) => {
     await user.save()
 
     // Generate token
-    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: user._id, email: user.email, role: user.role, shopId: user.shop?._id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE,
     })
 
@@ -93,6 +93,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         role: user.role,
         approvalStatus: user.approvalStatus,
+        shop: user.shop,
       },
     })
   } catch (error) {

@@ -2,17 +2,26 @@ import express from "express"
 import Sale from "../models/Sale.js"
 import Product from "../models/Product.js"
 import Inventory from "../models/Inventory.js"
+import User from "../models/User.js"
 import { verifyToken } from "../middleware/auth.js"
 
 const router = express.Router()
 
-// Get all sales with pagination
+// Get all sales with pagination (for current shop)
 router.get("/", verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 50, startDate, endDate } = req.query
     const skip = (page - 1) * limit
 
+    const user = await User.findById(req.user.id).select("shop role")
+
     const query = {}
+    
+    // Filter by shop
+    if (user.role !== "admin") {
+      query.shop = user.shop
+    }
+
     if (startDate || endDate) {
       query.createdAt = {}
       if (startDate) query.createdAt.$gte = new Date(startDate)
@@ -22,6 +31,7 @@ router.get("/", verifyToken, async (req, res) => {
     const sales = await Sale.find(query)
       .populate("items.product", "name barcode")
       .populate("customer", "name phone")
+      .populate("shop", "name")
       .populate("soldBy", "name email")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -36,17 +46,27 @@ router.get("/", verifyToken, async (req, res) => {
 })
 
 // Get sales by date range
-router.get("/range", async (req, res) => {
+router.get("/range", verifyToken, async (req, res) => {
   try {
     const { startDate, endDate } = req.query
-    const sales = await Sale.find({
+    const user = await User.findById(req.user.id).select("shop role")
+
+    const query = {
       createdAt: {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       },
-    })
+    }
+
+    if (user.role !== "admin") {
+      query.shop = user.shop
+    }
+
+    const sales = await Sale.find(query)
       .populate("items.product")
       .populate("soldBy")
+      .populate("shop", "name")
+
     res.json(sales)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -80,6 +100,12 @@ router.post("/", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Total amount and payment method are required" })
     }
 
+    // Get user's shop
+    const user = await User.findById(req.user.id).select("shop")
+    if (!user.shop) {
+      return res.status(400).json({ message: "You must be assigned to a shop" })
+    }
+
     // Generate sale number
     const saleNumber = `SALE-${Date.now()}`
 
@@ -90,15 +116,20 @@ router.post("/", verifyToken, async (req, res) => {
       if (item.productId) {
         product = await Product.findById(item.productId)
       } else if (item.barcode) {
-        product = await Product.findOne({ barcode: item.barcode })
+        product = await Product.findOne({ barcode: item.barcode, shop: user.shop })
       }
 
       if (!product) {
         return res.status(404).json({ message: `Product not found for item: ${item.barcode || item.productId}` })
       }
 
+      // Verify product belongs to the shop
+      if (product.shop.toString() !== user.shop.toString()) {
+        return res.status(403).json({ message: `Product ${product.name} does not belong to your shop` })
+      }
+
       // Check inventory
-      const inventory = await Inventory.findOne({ product: product._id })
+      const inventory = await Inventory.findOne({ product: product._id, shop: user.shop })
       if (!inventory || inventory.quantity < item.quantity) {
         return res
           .status(400)
@@ -119,6 +150,7 @@ router.post("/", verifyToken, async (req, res) => {
     }
 
     const sale = new Sale({
+      shop: user.shop,
       saleNumber,
       items: populatedItems,
       customer: customerId,
@@ -139,7 +171,7 @@ router.post("/", verifyToken, async (req, res) => {
 
     // Update inventory
     for (const item of populatedItems) {
-      await Inventory.findOneAndUpdate({ product: item.product }, { $inc: { quantity: -item.quantity } })
+      await Inventory.findOneAndUpdate({ product: item.product, shop: user.shop }, { $inc: { quantity: -item.quantity } })
     }
 
     // Update customer loyalty points and purchases if customer exists
@@ -154,7 +186,7 @@ router.post("/", verifyToken, async (req, res) => {
       )
     }
 
-    await sale.populate("items.product customer soldBy")
+    await sale.populate(["items.product", "customer", "soldBy", "shop"])
 
     res.status(201).json(sale)
   } catch (error) {

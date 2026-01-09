@@ -1,16 +1,30 @@
+
 import express from "express"
 import Product from "../models/Product.js"
+import User from "../models/User.js"
 import { verifyToken, authorizeRole } from "../middleware/auth.js"
 
 const router = express.Router()
 
-// Get all products with pagination
-router.get("/", async (req, res) => {
+// Get all products with pagination (for current user's shop)
+router.get("/", verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 50, search, category } = req.query
     const skip = (page - 1) * limit
 
+    // Get user's shop
+    const user = await User.findById(req.user.id).select("shop role")
+    if (!user.shop && user.role !== "admin") {
+      return res.status(403).json({ message: "You don't have a shop assigned" })
+    }
+
     const query = { isActive: true }
+    
+    // Filter by shop (admin can see all, others see only their shop)
+    if (user.role !== "admin") {
+      query.shop = user.shop
+    }
+
     if (search) {
       query.$or = [{ name: new RegExp(search, "i") }, { sku: new RegExp(search, "i") }, { barcode: search }]
     }
@@ -19,8 +33,8 @@ router.get("/", async (req, res) => {
     }
 
     const products = await Product.find(query)
-      // .populate("supplier", "name phone email")
       .populate("category")
+      .populate("shop", "name")
       .populate("createdBy", "name email")
       .skip(skip)
       .limit(limit)
@@ -34,11 +48,18 @@ router.get("/", async (req, res) => {
 })
 
 // Get product by barcode (for POS)
-router.get("/barcode/:barcode", async (req, res) => {
+router.get("/barcode/:barcode", verifyToken, async (req, res) => {
   try {
-    const product = await Product.findOne({ barcode: req.params.barcode, isActive: true })
-      // .populate("supplier", "name")
+    const user = await User.findById(req.user.id).select("shop role")
+    
+    const query = { barcode: req.params.barcode, isActive: true }
+    if (user.role !== "admin") {
+      query.shop = user.shop
+    }
+
+    const product = await Product.findOne(query)
       .populate("category", "name")
+      .populate("shop", "name")
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" })
@@ -51,16 +72,24 @@ router.get("/barcode/:barcode", async (req, res) => {
 })
 
 // Get product by ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", verifyToken, async (req, res) => {
   try {
+    const user = await User.findById(req.user.id).select("shop role")
+    
     const product = await Product.findById(req.params.id)
-      .populate("supplier")
       .populate("category")
-      .populate("createdBy")
+      .populate("shop", "name")
+      .populate("createdBy", "name email")
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" })
     }
+
+    // Check access
+    if (user.role !== "admin" && product.shop.toString() !== user.shop?.toString()) {
+      return res.status(403).json({ message: "Access denied" })
+    }
+
     res.json(product)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -99,15 +128,27 @@ router.post("/", verifyToken, authorizeRole(["admin", "manager"]), async (req, r
       return res.status(400).json({ message: "Missing required fields" })
     }
 
-    // Check if SKU or barcode already exists
-    if (await Product.findOne({ sku })) {
-      return res.status(409).json({ message: "SKU already exists" })
+    // Get user's shop
+    const user = await User.findById(req.user.id).select("shop role")
+    if (!user.shop && user.role !== "admin") {
+      return res.status(400).json({ message: "You must be assigned to a shop first" })
     }
-    if (barcode && (await Product.findOne({ barcode }))) {
-      return res.status(409).json({ message: "Barcode already exists" })
+
+    const shopId = user.role === "admin" ? req.body.shop : user.shop
+    if (!shopId) {
+      return res.status(400).json({ message: "Shop is required" })
+    }
+
+    // Check if SKU already exists within this shop
+    if (await Product.findOne({ shop: shopId, sku })) {
+      return res.status(409).json({ message: "SKU already exists for this shop" })
+    }
+    if (barcode && (await Product.findOne({ shop: shopId, barcode }))) {
+      return res.status(409).json({ message: "Barcode already exists for this shop" })
     }
 
     const product = new Product({
+      shop: shopId,
       name,
       sku,
       barcode,
@@ -119,7 +160,6 @@ router.post("/", verifyToken, authorizeRole(["admin", "manager"]), async (req, r
       wholesalePrice,
       color,
       specifications,
-      // warranty,
       weight,
       dimensions,
       images,
@@ -133,7 +173,7 @@ router.post("/", verifyToken, authorizeRole(["admin", "manager"]), async (req, r
     })
 
     await product.save()
-    await product.populate("category createdBy")
+    await product.populate(["category", "createdBy", "shop"])
 
     res.status(201).json(product)
   } catch (error) {

@@ -2,6 +2,11 @@ import mongoose from "mongoose"
 
 const inventorySchema = new mongoose.Schema(
   {
+    shop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Shop",
+      required: true,
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
@@ -31,5 +36,8 @@ const inventorySchema = new mongoose.Schema(
   },
   { timestamps: true },
 )
+
+// Compound unique index for product within each shop
+inventorySchema.index({ shop: 1, product: 1 }, { unique: true })
 
 export default mongoose.model("Inventory", inventorySchema)
