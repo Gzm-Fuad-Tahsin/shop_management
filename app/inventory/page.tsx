@@ -25,6 +25,7 @@ interface InventoryItem {
 export default function InventoryPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string>("")
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -34,12 +35,16 @@ export default function InventoryPage() {
 
   const fetchInventory = async () => {
     try {
+      setError("")
       setIsLoading(true)
       const response = await apiCall("/api/inventory")
       const data = await response.json()
-      setInventory(data)
+      const items = Array.isArray(data) ? data : Array.isArray(data?.inventory) ? data.inventory : []
+      setInventory(items)
     } catch (error) {
       console.error("Failed to fetch inventory:", error)
+      setError("Failed to load inventory")
+      setInventory([])
     } finally {
       setIsLoading(false)
     }
@@ -90,6 +95,8 @@ export default function InventoryPage() {
         <CardContent>
           {isLoading ? (
             <p className="text-muted-foreground">Loading inventory...</p>
+          ) : error ? (
+            <p className="text-destructive">{error}</p>
           ) : (
             <Table>
               <TableHeader>

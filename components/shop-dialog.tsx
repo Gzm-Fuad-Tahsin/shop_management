@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 interface ShopDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  onSuccess: (shop: any) => void
 }
 
 export function ShopDialog({ open, onOpenChange, onSuccess }: ShopDialogProps) {
@@ -45,12 +45,17 @@ export function ShopDialog({ open, onOpenChange, onSuccess }: ShopDialogProps) {
     setIsLoading(true)
 
     try {
-      await apiCall("/api/shops", {
+      const response = await apiCall("/api/shops", {
         method: "POST",
         body: JSON.stringify(formData),
       })
 
-      onSuccess()
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to create shop")
+      }
+
+      onSuccess(data?.shop)
       setFormData({
         name: "",
         address: "",
@@ -65,7 +70,8 @@ export function ShopDialog({ open, onOpenChange, onSuccess }: ShopDialogProps) {
       })
     } catch (error) {
       console.error("Failed to create shop:", error)
-      setError("Failed to create shop")
+      const message = error instanceof Error ? error.message : "Failed to create shop"
+      setError(message)
     } finally {
       setIsLoading(false)
     }

@@ -1,29 +1,49 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { apiCall } from "@/lib/api"
+import type React from "react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { apiCall } from "@/lib/api";
+import { Loader2, Search } from "lucide-react";
 
 interface InventoryDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
 interface Product {
-  _id: string
-  name: string
-  sku: string
+  _id: string;
+  name: string;
+  sku: string;
 }
 
-export function InventoryDialog({ open, onOpenChange, onSuccess }: InventoryDialogProps) {
-  const [products, setProducts] = useState<Product[]>([])
+export function InventoryDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: InventoryDialogProps) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
   const [formData, setFormData] = useState({
     product: "",
     quantity: 0,
@@ -34,208 +54,268 @@ export function InventoryDialog({ open, onOpenChange, onSuccess }: InventoryDial
     lastRestockQuantity: 0,
     expiryDate: "",
     batchNumber: "",
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  });
 
+  const filteredProducts = products.filter((p) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(term) ||
+      p.sku.toLowerCase().includes(term)
+    );
+  });
+
+  // Debounced search effect (only when dialog open)
   useEffect(() => {
-    if (open) {
-      fetchProducts()
-    }
-  }, [open])
+    if (!open) return;
 
-  const fetchProducts = async () => {
+    const timeout = setTimeout(() => {
+      fetchProducts(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, searchTerm]);
+
+  // Initial load when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    fetchProducts("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const fetchProducts = async (search?: string) => {
     try {
-      setIsLoadingProducts(true)
-      const response = await apiCall("/api/products")
-      const data = await response.json()
-      setProducts(Array.isArray(data) ? data : data.products || [])
+      setIsLoadingProducts(true);
+      const query = search ? `?search=${encodeURIComponent(search)}` : "";
+      const response = await apiCall(`/api/products${query}`);
+      const data = await response.json();
+      setProducts(Array.isArray(data) ? data : data.products || []);
     } catch (error) {
-      console.error("Failed to fetch products:", error)
+      console.error("Failed to fetch products:", error);
+      setProducts([]);
     } finally {
-      setIsLoadingProducts(false)
+      setIsLoadingProducts(false);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
+    if (!formData.product) return alert("Please select a product");
 
-    if (!formData.product) {
-      alert("Please select a product")
-      return
-    }
-
-    setIsLoading(true)
-
+    setIsLoading(true);
     try {
       const payload = {
-        product: formData.product,
+        ...formData,
         quantity: Number(formData.quantity),
         reorderLevel: Number(formData.reorderLevel),
         reorderQuantity: Number(formData.reorderQuantity),
-        warehouse: formData.warehouse,
-        ...(formData.lastRestockDate && {
-          lastRestockDate: new Date(formData.lastRestockDate).toISOString(),
-        }),
-        ...(formData.lastRestockQuantity && {
-          lastRestockQuantity: Number(formData.lastRestockQuantity),
-        }),
-        ...(formData.expiryDate && {
-          expiryDate: new Date(formData.expiryDate).toISOString(),
-        }),
-        ...(formData.batchNumber && {
-          batchNumber: formData.batchNumber,
-        }),
-      }
+        lastRestockQuantity: Number(formData.lastRestockQuantity),
+        lastRestockDate: formData.lastRestockDate
+          ? new Date(formData.lastRestockDate).toISOString()
+          : undefined,
+        expiryDate: formData.expiryDate
+          ? new Date(formData.expiryDate).toISOString()
+          : undefined,
+      };
 
       await apiCall("/api/inventory", {
         method: "POST",
         body: JSON.stringify(payload),
-      })
+      });
 
-      onSuccess()
-      setFormData({
-        product: "",
-        quantity: 0,
-        reorderLevel: 10,
-        reorderQuantity: 50,
-        warehouse: "Main",
-        lastRestockDate: "",
-        lastRestockQuantity: 0,
-        expiryDate: "",
-        batchNumber: "",
-      })
+      onSuccess();
+      onOpenChange(false);
+      resetForm();
     } catch (error) {
-      console.error("Failed to add inventory:", error)
-      alert("Failed to add inventory item")
+      console.error(error);
+      alert("Failed to add inventory item");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      product: "",
+      quantity: 0,
+      reorderLevel: 10,
+      reorderQuantity: 50,
+      warehouse: "Main",
+      lastRestockDate: "",
+      lastRestockQuantity: 0,
+      expiryDate: "",
+      batchNumber: "",
+    });
+    setSearchTerm("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Inventory</DialogTitle>
-          <DialogDescription>Add a new item to your inventory</DialogDescription>
+          <DialogDescription>
+            Link a product to a warehouse and set stock levels.
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="product">Product *</Label>
+        <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+          {/* Product Selection Group */}
+          <div className="space-y-2 p-4 border rounded-lg bg-slate-50/50">
+            <Label className="text-sm font-bold">Product Selection *</Label>
+
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search name or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+
             <Select
               value={formData.product}
-              onValueChange={(value) => setFormData({ ...formData, product: value })}
-              disabled={isLoadingProducts}
+              onValueChange={(val) =>
+                setFormData((prev) => ({ ...prev, product: val }))
+              }
             >
               <SelectTrigger>
-                <SelectValue placeholder={isLoadingProducts ? "Loading products..." : "Select a product"} />
+                <SelectValue
+                  placeholder={
+                    isLoadingProducts ? "Searching..." : "Search name or SKU..."
+                  }
+                />
               </SelectTrigger>
-              <SelectContent>
-                {products.map((product) => (
-                  <SelectItem key={product._id} value={product._id}>
-                    {product.name} ({product.sku})
-                  </SelectItem>
-                ))}
+
+              {/* Dropdown */}
+              <SelectContent className="p-0">
+                {/* Loading / Results */}
+                {isLoadingProducts ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : filteredProducts.length > 0 ? (
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredProducts.map((p) => (
+                      <SelectItem key={p._id} value={p._id}>
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate">{p.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            ({p.sku})
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 text-center text-sm text-muted-foreground">
+                    No products found
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="quantity">Quantity *</Label>
+          {/* Grid Layout for details */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Current Quantity</Label>
               <Input
                 id="quantity"
                 type="number"
-                min="0"
                 value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
-                required
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    quantity: Number(e.target.value),
+                  }))
+                }
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="warehouse">Warehouse</Label>
               <Input
                 id="warehouse"
                 value={formData.warehouse}
-                onChange={(e) => setFormData({ ...formData, warehouse: e.target.value })}
-                placeholder="Main"
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, warehouse: e.target.value }))
+                }
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="reorderLevel">Reorder Level</Label>
               <Input
                 id="reorderLevel"
                 type="number"
-                min="0"
                 value={formData.reorderLevel}
-                onChange={(e) => setFormData({ ...formData, reorderLevel: Number(e.target.value) })}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    reorderLevel: Number(e.target.value),
+                  }))
+                }
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="reorderQuantity">Reorder Quantity</Label>
               <Input
                 id="reorderQuantity"
                 type="number"
-                min="0"
                 value={formData.reorderQuantity}
-                onChange={(e) => setFormData({ ...formData, reorderQuantity: Number(e.target.value) })}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    reorderQuantity: Number(e.target.value),
+                  }))
+                }
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="lastRestockDate">Last Restock Date</Label>
-            <Input
-              id="lastRestockDate"
-              type="date"
-              value={formData.lastRestockDate}
-              onChange={(e) => setFormData({ ...formData, lastRestockDate: e.target.value })}
-            />
+          <hr />
+
+          {/* Batch + Expiry */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="batchNumber">Batch Number</Label>
+              <Input
+                id="batchNumber"
+                placeholder="e.g. BATCH-001"
+                value={formData.batchNumber}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, batchNumber: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expiryDate">Expiry Date</Label>
+              <Input
+                id="expiryDate"
+                type="date"
+                value={formData.expiryDate}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, expiryDate: e.target.value }))
+                }
+              />
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="lastRestockQuantity">Last Restock Quantity</Label>
-            <Input
-              id="lastRestockQuantity"
-              type="number"
-              min="0"
-              value={formData.lastRestockQuantity}
-              onChange={(e) => setFormData({ ...formData, lastRestockQuantity: Number(e.target.value) })}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="expiryDate">Expiry Date</Label>
-            <Input
-              id="expiryDate"
-              type="date"
-              value={formData.expiryDate}
-              onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="batchNumber">Batch Number</Label>
-            <Input
-              id="batchNumber"
-              value={formData.batchNumber}
-              onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-              placeholder="e.g., BATCH-001"
-            />
-          </div>
-
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Adding..." : "Add Inventory"}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading || !formData.product}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? "Saving..." : "Add to Inventory"}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

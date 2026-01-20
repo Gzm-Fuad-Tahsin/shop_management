@@ -9,14 +9,21 @@ import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, refreshUser } = useAuth()
   const [showShopDialog, setShowShopDialog] = useState(false)
 
+
+  console.log("UUUUUUUUUUUUUU", user)
+
   useEffect(() => {
-    if (user && user.role === 'manager' && !user.shop) {
+    if (!user || isLoading) return
+
+    if (user.role === 'manager' && !user.shop) {
       setShowShopDialog(true)
+    } else {
+      setShowShopDialog(false)
     }
-  }, [user])
+  }, [isLoading, user])
 
   if (isLoading) {
     return (
@@ -33,10 +40,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     redirect('/auth/login')
   }
 
-  const handleShopCreated = () => {
+  const handleShopCreated = async (createdShop?: any) => {
     setShowShopDialog(false)
-    // Refresh user data
-    window.location.reload()
+    if (createdShop && user) {
+      const updatedUser = { ...user, shop: createdShop }
+      localStorage.setItem('user', JSON.stringify(updatedUser))
+    }
+    await refreshUser()
   }
 
   return (
@@ -47,8 +57,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
       
-      <ShopDialog 
-        open={showShopDialog} 
+      <ShopDialog
+        open={showShopDialog}
         onOpenChange={setShowShopDialog}
         onSuccess={handleShopCreated}
       />

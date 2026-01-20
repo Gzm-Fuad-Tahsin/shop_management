@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { apiCall } from "@/lib/api"
+
+interface Shop {
+  _id: string
+  name?: string
+}
 
 interface User {
   id: string
   name: string
   email: string
   role: "admin" | "manager" | "staff"
+  shop?: Shop | string | null
 }
 
 export function useAuth() {
@@ -15,22 +22,64 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
+  const fetchUserById = async (userId: string): Promise<User | null> => {
+    try {
+      const response = await apiCall(`/api/users/${userId}`)
+
+      if (!response.ok) {
+        return null
+      }
+
+      const updatedUser = await response.json()
+      return updatedUser
+    } catch (error) {
+      console.error("Failed to fetch user:", error)
+      return null
+    }
+  }
+
   useEffect(() => {
-    // Load user from localStorage
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
+    const loadUser = async () => {
+      const storedUser = localStorage.getItem("user")
+
+      if (!storedUser) {
+        router.push("/auth/login")
+        setIsLoading(false)
+        return
+      }
+
       try {
-        setUser(JSON.parse(storedUser))
+        const parsedUser: User = JSON.parse(storedUser)
+        setUser(parsedUser)
+
+        const freshUser = await fetchUserById(parsedUser.id)
+        if (freshUser) {
+          setUser(freshUser)
+          localStorage.setItem("user", JSON.stringify(freshUser))
+        }
       } catch (error) {
         console.error("Failed to parse user:", error)
         localStorage.removeItem("user")
         router.push("/auth/login")
+      } finally {
+        setIsLoading(false)
       }
-    } else {
-      router.push("/auth/login")
     }
-    setIsLoading(false)
+
+    loadUser()
   }, [router])
+
+  const refreshUser = async () => {
+    if (!user) return null
+
+    const updatedUser = await fetchUserById(user.id)
+    if (updatedUser) {
+      setUser(updatedUser)
+      localStorage.setItem("user", JSON.stringify(updatedUser))
+    }
+
+    return updatedUser
+  }
 
   const logout = () => {
     localStorage.removeItem("token")
@@ -39,5 +88,5 @@ export function useAuth() {
     router.push("/auth/login")
   }
 
-  return { user, isLoading, logout }
+  return { user, isLoading, logout, refreshUser }
 }
