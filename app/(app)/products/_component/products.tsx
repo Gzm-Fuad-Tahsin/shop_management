@@ -17,7 +17,7 @@ interface Product {
   barcode?: string
   retailPrice: number
   costPrice: number
-  category?: string
+  category?: string | { _id?: string; name?: string; description?: string; isActive?: boolean }
   color?: string
   specifications?: string
   isActive?: boolean
@@ -83,6 +83,14 @@ export default function ProductsPage() {
   )
 
   const profit = (price: number, cost: number) => (((price - cost) / price) * 100)?.toFixed(1)
+  const categoryLabel = (category: Product["category"]) => {
+    if (!category) return "-"
+    if (typeof category === "string") return category
+    if (typeof category === "object") {
+      return category.name || category._id || "-"
+    }
+    return "-"
+  }
 
   return (
     <div className="p-8">
@@ -146,7 +154,7 @@ export default function ProductsPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell>{product.category || '-'}</TableCell>
+                      <TableCell>{categoryLabel(product.category)}</TableCell>
                       <TableCell>${product.costPrice?.toFixed(2)}</TableCell>
                       <TableCell>${product.retailPrice?.toFixed(2)}</TableCell>
                       <TableCell>

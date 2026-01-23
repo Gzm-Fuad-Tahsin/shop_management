@@ -1,41 +1,45 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useAuth } from '@/hooks/use-auth'
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import { Topbar } from '@/components/topbar'
 import { ShopDialog } from '@/components/shop-dialog'
-import type { ReactNode } from 'react'
-import { redirect } from 'next/navigation'
+import { useAuth } from '@/hooks/use-auth'
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isLoading, refreshUser } = useAuth()
-  const [showShopDialog, setShowShopDialog] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showShopDialog, setShowShopDialog] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
   useEffect(() => {
-    if (!mounted || !user || isLoading) return
+    if (!mounted || isLoading) return
 
-    if (user.role === 'manager' && !user.shop) {
+    if (user?.role === 'manager' && !user.shop) {
       setShowShopDialog(true)
     } else {
       setShowShopDialog(false)
     }
   }, [mounted, isLoading, user])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
+  if (!mounted || isLoading) {
+    return <LoadingScreen />
   }
 
   if (!user) {
@@ -58,7 +62,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <Topbar user={user} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
-      
       <ShopDialog
         open={showShopDialog}
         onOpenChange={setShowShopDialog}
