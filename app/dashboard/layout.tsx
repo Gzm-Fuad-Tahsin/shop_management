@@ -11,19 +11,21 @@ import { redirect } from 'next/navigation'
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, isLoading, refreshUser } = useAuth()
   const [showShopDialog, setShowShopDialog] = useState(false)
-
-
-  console.log("UUUUUUUUUUUUUU", user)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    if (!user || isLoading) return
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted || !user || isLoading) return
 
     if (user.role === 'manager' && !user.shop) {
       setShowShopDialog(true)
     } else {
       setShowShopDialog(false)
     }
-  }, [isLoading, user])
+  }, [mounted, isLoading, user])
 
   if (isLoading) {
     return (

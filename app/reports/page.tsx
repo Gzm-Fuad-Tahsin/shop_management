@@ -21,7 +21,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { apiCall } from "@/lib/api"
-import { Download } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { Download, Loader2 } from "lucide-react"
 
 interface SalesData {
   date: string
@@ -32,18 +33,21 @@ interface SalesData {
 interface CategoryData {
   name: string
   value: number
+  quantity?: number
 }
 
 export default function ReportsPage() {
+  const { user } = useAuth()
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   )
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0])
   const [salesData, setSalesData] = useState<SalesData[]>([])
-  const [categoryData, setCategoryData] = useState<CategoryData[]>([])
+  const [categorySalesData, setCategorySalesData] = useState<CategoryData[]>([])
+  const [revenueByShop, setRevenueByShop] = useState<CategoryData[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
+  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
 
   useEffect(() => {
     fetchReportData()
@@ -52,6 +56,18 @@ export default function ReportsPage() {
   const fetchReportData = async () => {
     try {
       setIsLoading(true)
+
+      // Fetch category sales
+      const categoryResponse = await apiCall("/api/dashboard/category-sales")
+      const categoryData = await categoryResponse.json()
+      setCategorySalesData(categoryData)
+
+      // Fetch revenue by shop if admin
+      if (user?.role === "admin") {
+        const revenueResponse = await apiCall("/api/dashboard/revenue-by-shop")
+        const revenueData = await revenueResponse.json()
+        setRevenueByShop(revenueData)
+      }
 
       // Fetch sales data
       const salesResponse = await apiCall(`/api/sales/range?startDate=${startDate}&endDate=${endDate}`)
@@ -77,15 +93,6 @@ export default function ReportsPage() {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
       setSalesData(processedSalesData)
-
-      // Mock category data
-      setCategoryData([
-        { name: "Electronics", value: 35 },
-        { name: "Clothing", value: 25 },
-        { name: "Food", value: 20 },
-        { name: "Books", value: 15 },
-        { name: "Other", value: 5 },
-      ])
     } catch (error) {
       console.error("Failed to fetch report data:", error)
     } finally {
@@ -113,11 +120,21 @@ export default function ReportsPage() {
     a.click()
   }
 
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Reports</h1>
-        <p className="text-muted-foreground mt-1">Analyze your sales and performance</p>
+        <p className="text-muted-foreground mt-1">
+          {user?.role === "admin" ? "All Shops Analytics" : "Your Shop Analytics"}
+        </p>
       </div>
 
       {/* Date Range Filter */}
@@ -159,7 +176,7 @@ export default function ReportsPage() {
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalSales.toFixed(2)}</div>
+            <div className="text-2xl font-bold">${totalSales.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -182,56 +199,126 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Sales Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <p className="text-muted-foreground">Loading chart...</p>
-            ) : (
+      {/* Charts for Manager: One pie chart for category sales */}
+      {user?.role === "manager" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={salesData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip formatter={(value) => `$${value}`} />
                   <Legend />
                   <Line type="monotone" dataKey="amount" stroke="#3b82f6" name="Sales Amount" />
                 </LineChart>
               </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry) => `${entry.name} ${entry.value}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales by Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {categorySalesData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categorySalesData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={(entry) => `${entry.name} $${entry.value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {categorySalesData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `$${value}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No sales data available</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Charts for Admin: Two pie charts (category sales and revenue by shop) */}
+      {user?.role === "admin" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales by Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {categorySalesData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categorySalesData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={(entry) => `${entry.name} $${entry.value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {categorySalesData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `$${value}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No sales data available</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by Shop</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {revenueByShop.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={revenueByShop}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={(entry) => `${entry.name} $${entry.value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {revenueByShop.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `$${value}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No data available</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Transactions Chart */}
       <Card>

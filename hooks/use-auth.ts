@@ -20,6 +20,7 @@ interface User {
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
   const fetchUserById = async (userId: string): Promise<User | null> => {
@@ -39,12 +40,18 @@ export function useAuth() {
   }
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
     const loadUser = async () => {
       const storedUser = localStorage.getItem("user")
 
       if (!storedUser) {
-        router.push("/auth/login")
         setIsLoading(false)
+        router.push("/auth/login")
         return
       }
 
@@ -52,6 +59,7 @@ export function useAuth() {
         const parsedUser: User = JSON.parse(storedUser)
         setUser(parsedUser)
 
+        // Refresh user data in background
         const freshUser = await fetchUserById(parsedUser.id)
         if (freshUser) {
           setUser(freshUser)
@@ -67,7 +75,7 @@ export function useAuth() {
     }
 
     loadUser()
-  }, [router])
+  }, [mounted, router])
 
   const refreshUser = async () => {
     if (!user) return null

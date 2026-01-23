@@ -127,8 +127,8 @@ export function EnhancedProductDialog({
     try {
       const response = await apiCall("/api/categories")
       const data = await response.json()
-      console.log(data)
-      setCategories(data)
+      const categories = Array.isArray(data) ? data : Array.isArray(data?.categories) ? data.categories : []
+      setCategories(categories)
     } catch (error) {
       console.error("Failed to fetch categories:", error)
     }
@@ -138,7 +138,8 @@ export function EnhancedProductDialog({
     try {
       const response = await apiCall("/api/suppliers")
       const data = await response.json()
-      setSuppliers(data)
+      const suppliers = Array.isArray(data) ? data : Array.isArray(data?.suppliers) ? data.suppliers : []
+      setSuppliers(suppliers)
     } catch (error) {
       console.error("Failed to fetch suppliers:", error)
     }
@@ -360,7 +361,7 @@ export function EnhancedProductDialog({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      warranty: { ...formData.warranty, duration: Number.parseInt(e.target.value) },
+                      warranty: { duration: Number.parseInt(e.target.value), type: formData.warranty?.type || "months" },
                     })
                   }
                 />

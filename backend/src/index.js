@@ -10,6 +10,7 @@ import userRoutes from "./routes/users.js"
 import categoryRoutes from "./routes/categories.js"
 import customerRoutes from "./routes/customers.js"
 import shopRoutes from "./routes/shops.js"
+import dashboardRoutes from "./routes/dashboard.js"
 import { errorHandler } from "./middleware/errorHandler.js"
 import { rateLimiter } from "./middleware/rateLimiter.js"
 
@@ -20,7 +21,7 @@ const app = express()
 // Middleware
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: "*",
     credentials: true,
   }),
 )
@@ -45,6 +46,7 @@ app.use("/api/sales", salesRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/categories", categoryRoutes)
 app.use("/api/customers", customerRoutes)
+app.use("/api/dashboard", dashboardRoutes)
 
 // Health check
 app.get("/health", (req, res) => {

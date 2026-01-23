@@ -11,16 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 
 interface Product {
-  _id: string
+  _id?: string
   name: string
   sku: string
   barcode?: string
   retailPrice: number
   costPrice: number
-  category: { _id: string; name: string }
+  category?: string
   color?: string
   specifications?: string
-  isActive: boolean
+  isActive?: boolean
 }
 
 export default function ProductsPage() {
@@ -39,7 +39,6 @@ export default function ProductsPage() {
       setIsLoading(true)
       const response = await apiCall("/api/products")
       const data = await response.json()
-      console.log(data)
       setProducts(data.products || data)
     } catch (error) {
       console.error("Failed to fetch products:", error)
@@ -61,6 +60,21 @@ export default function ProductsPage() {
     }
   }
 
+  const handleOpenDialog = (product: Product | null = null) => {
+    setEditingProduct(product)
+    setIsDialogOpen(true)
+  }
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false)
+    setEditingProduct(null)
+  }
+
+  const handleSuccess = () => {
+    handleCloseDialog()
+    fetchProducts()
+  }
+
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -78,10 +92,7 @@ export default function ProductsPage() {
           <p className="text-muted-foreground mt-1">Manage your product catalog with full details</p>
         </div>
         <Button
-          onClick={() => {
-            setEditingProduct(null)
-            setIsDialogOpen(true)
-          }}
+          onClick={() => handleOpenDialog()}
           className="gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -135,7 +146,7 @@ export default function ProductsPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell>{product.category?.name}</TableCell>
+                      <TableCell>{product.category || '-'}</TableCell>
                       <TableCell>${product.costPrice?.toFixed(2)}</TableCell>
                       <TableCell>${product.retailPrice?.toFixed(2)}</TableCell>
                       <TableCell>
@@ -147,14 +158,11 @@ export default function ProductsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            setEditingProduct(product)
-                            setIsDialogOpen(true)
-                          }}
+                          onClick={() => handleOpenDialog(product)}
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(product._id)}>
+                        <Button variant="ghost" size="sm" onClick={() => product._id && handleDelete(product._id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -169,12 +177,9 @@ export default function ProductsPage() {
 
       <EnhancedProductDialog
         open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={handleCloseDialog}
         product={editingProduct}
-        onSuccess={() => {
-          setIsDialogOpen(false)
-          fetchProducts()
-        }}
+        onSuccess={handleSuccess}
       />
     </div>
   )

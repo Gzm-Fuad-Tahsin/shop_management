@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Sidebar } from '@/components/sidebar'
 import { Topbar } from '@/components/topbar'
@@ -8,6 +9,22 @@ import { redirect } from 'next/navigation'
 
 export default function InventoryLayout({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

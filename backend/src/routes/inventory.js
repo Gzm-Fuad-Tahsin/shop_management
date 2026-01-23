@@ -99,7 +99,11 @@ router.post("/", verifyToken, authorizeRole(["admin", "manager"]), async (req, r
     // Check if inventory already exists for this product in this shop
     const existing = await Inventory.findOne({ shop: shopId, product: req.body.product })
     if (existing) {
-      return res.status(409).json({ message: "Inventory already exists for this product in this shop" })
+      const count = existing.quantity + req.body.quantity
+      existing.quantity = count
+      await existing.save()
+      await existing.populate(["product", "shop"])
+      return res.status(200).json(existing)
     }
 
     const inventory = new Inventory({
@@ -112,6 +116,7 @@ router.post("/", verifyToken, authorizeRole(["admin", "manager"]), async (req, r
 
     res.status(201).json(inventory)
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: error.message })
   }
 })

@@ -175,38 +175,28 @@ export function InventoryDialog({
               />
             </div>
 
-            <Select
-              value={formData.product}
-              onValueChange={(val) =>
-                setFormData((prev) => ({ ...prev, product: val }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    isLoadingProducts ? "Searching..." : "Search name or SKU..."
-                  }
-                />
-              </SelectTrigger>
-
-              {/* Dropdown */}
-              <SelectContent className="p-0">
-                {/* Loading / Results */}
+            {/* Product List Below Search */}
+            {searchTerm && (
+              <div className="border rounded-md p-2 max-h-64 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
                 {isLoadingProducts ? (
                   <div className="flex items-center justify-center p-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
                 ) : filteredProducts.length > 0 ? (
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="space-y-1">
                     {filteredProducts.map((p) => (
-                      <SelectItem key={p._id} value={p._id}>
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="truncate">{p.name}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            ({p.sku})
-                          </span>
-                        </span>
-                      </SelectItem>
+                      <button
+                        key={p._id}
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, product: p._id }))
+                          setSearchTerm("")
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                      >
+                        <div className="font-medium">{p.name}</div>
+                        <div className="text-xs text-muted-foreground">SKU: {p.sku}</div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -214,8 +204,23 @@ export function InventoryDialog({
                     No products found
                   </div>
                 )}
-              </SelectContent>
-            </Select>
+              </div>
+            )}
+
+            {/* Selected Product Display */}
+            {formData.product && !searchTerm && (
+              <div className="border rounded-md p-3 bg-blue-50 dark:bg-blue-900/20 text-sm">
+                <span className="font-medium">Selected: </span>
+                {products.find((p) => p._id === formData.product)?.name || "Loading..."}
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, product: "" }))}
+                  className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grid Layout for details */}

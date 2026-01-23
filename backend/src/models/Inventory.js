@@ -37,7 +37,4 @@ const inventorySchema = new mongoose.Schema(
   { timestamps: true },
 )
 
-// Compound unique index for product within each shop
-inventorySchema.index({ shop: 1, product: 1 }, { unique: true })
-
 export default mongoose.model("Inventory", inventorySchema)

@@ -1,23 +1,77 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { useAuth } from "@/hooks/use-auth"
+import { apiCall } from "@/lib/api"
+import { Loader2 } from "lucide-react"
 
-const data = [
-  { name: "Jan", sales: 4000, inventory: 2400 },
-  { name: "Feb", sales: 3000, inventory: 1398 },
-  { name: "Mar", sales: 2000, inventory: 9800 },
-  { name: "Apr", sales: 2780, inventory: 3908 },
-  { name: "May", sales: 1890, inventory: 4800 },
-  { name: "Jun", sales: 2390, inventory: 3800 },
-]
+interface DashboardStats {
+  totalSales: number
+  transactions: number
+  productsCount: number
+  inventoryValue: number
+  lowStockItems: number
+}
+
+interface ShopStats {
+  _id: string
+  shopName: string
+  totalSales: number
+  count: number
+  avgTransaction: number
+}
 
 export default function DashboardPage() {
+  const { user } = useAuth()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [shopStats, setShopStats] = useState<ShopStats[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Fetch stats
+      const statsResponse = await apiCall("/api/dashboard/stats")
+      const statsData = await statsResponse.json()
+      setStats(statsData)
+
+      // Fetch shop-wise stats if admin
+      if (user?.role === "admin") {
+        const shopResponse = await apiCall("/api/dashboard/shop-wise")
+        const shopData = await shopResponse.json()
+        setShopStats(shopData)
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
+
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back! Here's your shop overview.</p>
+        <p className="text-muted-foreground mt-1">
+          {user?.role === "admin" ? "All Shops Overview" : "Your Shop Overview"}
+        </p>
       </div>
 
       {/* Key Metrics */}
@@ -27,8 +81,8 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
-            <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+            <div className="text-2xl font-bold">${stats?.totalSales.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{stats?.transactions} transactions</p>
           </CardContent>
         </Card>
 
@@ -37,7 +91,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
+            <div className="text-2xl font-bold">{stats?.productsCount}</div>
             <p className="text-xs text-muted-foreground">Active products</p>
           </CardContent>
         </Card>
@@ -47,7 +101,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$89,456.00</div>
+            <div className="text-2xl font-bold">${(stats?.inventoryValue || 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Total stock value</p>
           </CardContent>
         </Card>
@@ -57,52 +111,34 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{stats?.lowStockItems}</div>
             <p className="text-xs text-muted-foreground">Needs reordering</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      {/* Admin: Shop-wise sales chart */}
+      {user?.role === "admin" && shopStats.length > 0 && (
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Sales vs Inventory</CardTitle>
+            <CardTitle>Shop-wise Sales</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data}>
+              <BarChart data={shopStats}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="shopName" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(value) => `$${value}`} />
                 <Legend />
-                <Bar dataKey="sales" fill="#3b82f6" />
-                <Bar dataKey="inventory" fill="#10b981" />
+                <Bar dataKey="totalSales" fill="#3b82f6" name="Total Sales" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center justify-between pb-2 border-b last:border-0">
-                  <div>
-                    <p className="font-medium">Order #{i + 1000}</p>
-                    <p className="text-sm text-muted-foreground">2 hours ago</p>
-                  </div>
-                  <p className="font-semibold">$1,200.00</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="text-center text-muted-foreground">Data loads from real sales records</div>
     </div>
   )
 }

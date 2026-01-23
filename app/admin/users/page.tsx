@@ -60,7 +60,7 @@ export default function AdminUsersPage() {
       if (!response.ok) throw new Error('Failed to fetch users')
 
       const data = await response.json()
-      setUsers(data)
+      setUsers(Array.isArray(data) ? data : data.users || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
@@ -81,7 +81,7 @@ export default function AdminUsersPage() {
 
       if (!response.ok) throw new Error('Failed to approve user')
 
-      setUsers(users.filter(u => u._id !== userId))
+      setUsers(Array.isArray(users) ? users.filter(u => u._id !== userId) : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve user')
     }
@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
 
       if (!response.ok) throw new Error('Failed to reject user')
 
-      setUsers(users.filter(u => u._id !== userId))
+      setUsers(Array.isArray(users) ? users.filter(u => u._id !== userId) : [])
       setRejectDialogOpen(false)
       setSelectedUser(null)
       setRejectionReason('')

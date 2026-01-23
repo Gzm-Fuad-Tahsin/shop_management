@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Store } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,19 +14,38 @@ import {
 
 interface TopbarProps {
   user: {
-    name: string
-    email: string
-    role: string
+    name?: string
+    email?: string
+    role?: string
+    shop?: {
+      _id?: string
+      name?: string
+    } | string | null
   }
 }
 
 export function Topbar({ user }: TopbarProps) {
   const { logout } = useAuth()
+  const shopName = typeof user.shop === "object" && user.shop?.name ? user.shop.name : null
+
+  if (!user?.name) {
+    return (
+      <div className="flex items-center justify-between h-16 px-6 bg-card border-b border-border">
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center justify-between h-16 px-6 bg-card border-b border-border">
       <div>
         <h2 className="text-sm font-medium text-muted-foreground">Welcome back</h2>
+        {shopName && user.role === "manager" && (
+          <div className="flex items-center gap-1 mt-1 text-xs text-foreground">
+            <Store className="w-3 h-3" />
+            <span>{shopName}</span>
+          </div>
+        )}
       </div>
 
       <DropdownMenu>
@@ -42,7 +61,15 @@ export function Topbar({ user }: TopbarProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+          <DropdownMenuLabel>
+            <div>{user.name}</div>
+            <div className="text-xs font-normal text-muted-foreground">{user.email}</div>
+            {shopName && user.role === "manager" && (
+              <div className="text-xs font-normal text-muted-foreground flex items-center gap-1 mt-1">
+                <Store className="w-3 h-3" /> {shopName}
+              </div>
+            )}
+          </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={logout} className="flex items-center gap-2 cursor-pointer">
             <LogOut className="w-4 h-4" />
