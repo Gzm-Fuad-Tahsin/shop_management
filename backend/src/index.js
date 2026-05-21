@@ -24,7 +24,7 @@ const app = express()
 // Middleware
 app.use(
   cors({
-    origin: ["*", "http://localhost:3000", "https://shop-management-zapo.onrender.com","https://shop-management-kappa.vercel.app/"],
+    origin: ["http://localhost:3000", "https://shop-management-zapo.onrender.com","https://shop-management-kappa.vercel.app"],
     credentials: true,
   }),
 )
