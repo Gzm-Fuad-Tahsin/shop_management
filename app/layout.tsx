@@ -2,6 +2,7 @@ import type React from 'react'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import { ServiceWorkerCleanup } from '@/components/sw-unregister'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -33,18 +34,11 @@ export default function RootLayout({
         />
         <meta name="theme-color" content="#000000" />
         {process.env.NODE_ENV === "production" && <link rel="manifest" href="/manifest.json" />}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              process.env.NODE_ENV === "production"
-                ? `if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js'); }); }`
-                : `if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then((registrations) => { registrations.forEach((registration) => registration.unregister()); }); }`,
-          }}
-        />
       </head>
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}
       >
+        <ServiceWorkerCleanup />
         {children}
       </body>
     </html>

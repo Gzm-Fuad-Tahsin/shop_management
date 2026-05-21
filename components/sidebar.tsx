@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Package, ShoppingCart, BarChart3, Settings, Zap, Users, ReceiptText } from "lucide-react"
+import { getNavigationItems } from "@/components/navigation"
 
 interface SidebarProps {
   user: {
@@ -13,27 +13,10 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
-
-  const navigationItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/products", label: "Products", icon: Package },
-    { href: "/inventory", label: "Inventory", icon: ShoppingCart },
-    { href: "/sales", label: "Sales", icon: ShoppingCart },
-    { href: "/pos", label: "POS", icon: Zap },
-    { href: "/reports", label: "Reports", icon: BarChart3 },
-    ...(user.role === "admin" || user.role === "manager"
-      ? [{ href: "/costs", label: "Costs", icon: ReceiptText }]
-      : []),
-    ...(user.role === "admin"
-      ? [
-          { href: "/users", label: "User Approvals", icon: Users },
-          { href: "/admin", label: "Admin Panel", icon: Settings },
-        ]
-      : []),
-  ]
+  const navigationItems = getNavigationItems(user.role)
 
   return (
-    <div className="w-64 bg-card border-r border-border">
+    <div className="hidden md:block w-full md:w-64 bg-card border-b md:border-b-0 md:border-r border-border">
       <div className="p-6">
         <h1 className="text-xl font-bold text-foreground">ShopManager</h1>
         <p className="text-xs text-muted-foreground">Management System</p>
@@ -49,7 +32,7 @@ export function Sidebar({ user }: SidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-4 py-2 rounded-lg transition-colors",
+                "flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200",
                 isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-accent",
               )}
             >

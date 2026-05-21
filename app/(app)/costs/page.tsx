@@ -229,7 +229,7 @@ export default function CostsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Cost Section</h1>
         <p className="text-muted-foreground mt-1">
@@ -284,7 +284,7 @@ export default function CostsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Add Cost Entry</CardTitle>
@@ -343,61 +343,63 @@ export default function CostsPage() {
           </CardHeader>
           <CardContent>
             {costData?.entries?.length ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    {user?.role === "admin" && <TableHead>Shop</TableHead>}
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {costData.entries.map((entry) => (
-                    <TableRow key={entry._id}>
-                      <TableCell className="font-medium">
-                        {editingId === entry._id ? (
-                          <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                        ) : (
-                          entry.title
-                        )}
-                      </TableCell>
-                      {user?.role === "admin" && <TableCell>{entry.shop?.name || "-"}</TableCell>}
-                      <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">
-                        {editingId === entry._id ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={editAmount}
-                            onChange={(e) => setEditAmount(e.target.value)}
-                          />
-                        ) : (
-                          `$${Number(entry.amount || 0).toFixed(2)}`
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {editingId === entry._id ? (
-                          <>
-                            <Button size="sm" onClick={handleUpdateCost} disabled={isSaving}>
-                              Save
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={cancelEditing} disabled={isSaving}>
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button size="sm" variant="outline" onClick={() => startEditing(entry)}>
-                            Edit
-                          </Button>
-                        )}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      {user?.role === "admin" && <TableHead>Shop</TableHead>}
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {costData.entries.map((entry) => (
+                      <TableRow key={entry._id}>
+                        <TableCell className="font-medium">
+                          {editingId === entry._id ? (
+                            <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                          ) : (
+                            entry.title
+                          )}
+                        </TableCell>
+                        {user?.role === "admin" && <TableCell>{entry.shop?.name || "-"}</TableCell>}
+                        <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          {editingId === entry._id ? (
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                            />
+                          ) : (
+                            `$${Number(entry.amount || 0).toFixed(2)}`
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                          {editingId === entry._id ? (
+                            <>
+                              <Button size="sm" onClick={handleUpdateCost} disabled={isSaving}>
+                                Save
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={cancelEditing} disabled={isSaving}>
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => startEditing(entry)}>
+                              Edit
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground py-8 text-center">No cost entries found for the selected filters.</p>
             )}

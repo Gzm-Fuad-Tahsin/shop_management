@@ -23,6 +23,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isLoading, refreshUser } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [showShopDialog, setShowShopDialog] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -37,6 +38,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       setShowShopDialog(false)
     }
   }, [mounted, isLoading, user])
+
+  useEffect(() => {
+    if (!user) {
+      setMobileMenuOpen(false)
+    }
+  }, [user])
 
   if (!mounted || isLoading) {
     return <LoadingScreen />
@@ -56,10 +63,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex min-h-screen flex-col md:flex-row bg-background">
       <Sidebar user={user} />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Topbar user={user} />
+        <Topbar user={user} mobileMenuOpen={mobileMenuOpen} onMobileMenuOpenChange={setMobileMenuOpen} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
       <ShopDialog
