@@ -10,11 +10,14 @@ const router = express.Router()
 // Get dashboard data (admin sees all shops, manager sees only their shop)
 router.get("/stats", verifyToken, async (req, res) => {
   try {
+    const { shopId } = req.query
     const user = await User.findById(req.user.id).select("shop role")
 
     let shopFilter = {}
     if (user.role === "manager") {
       shopFilter = { shop: user.shop }
+    } else if (user.role === "admin" && shopId) {
+      shopFilter = { shop: shopId }
     }
 
     // Get total sales

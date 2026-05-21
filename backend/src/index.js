@@ -11,6 +11,9 @@ import categoryRoutes from "./routes/categories.js"
 import customerRoutes from "./routes/customers.js"
 import shopRoutes from "./routes/shops.js"
 import dashboardRoutes from "./routes/dashboard.js"
+import revenueRoutes from "./routes/revenue.js"
+import costRoutes from "./routes/cost.js"
+import reportsRoutes from "./routes/reports.js"
 import { errorHandler } from "./middleware/errorHandler.js"
 import { rateLimiter } from "./middleware/rateLimiter.js"
 
@@ -47,6 +50,9 @@ app.use("/api/users", userRoutes)
 app.use("/api/categories", categoryRoutes)
 app.use("/api/customers", customerRoutes)
 app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/v1/revenue", revenueRoutes)
+app.use("/api/v1/cost", costRoutes)
+app.use("/api/v1/reports", reportsRoutes)
 
 // Health check
 app.get("/health", (req, res) => {

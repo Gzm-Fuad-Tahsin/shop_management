@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Package, ShoppingCart, BarChart3, Settings, Zap, Users } from "lucide-react"
+import { LayoutDashboard, Package, ShoppingCart, BarChart3, Settings, Zap, Users, ReceiptText } from "lucide-react"
 
 interface SidebarProps {
   user: {
@@ -19,11 +19,14 @@ export function Sidebar({ user }: SidebarProps) {
     { href: "/products", label: "Products", icon: Package },
     { href: "/inventory", label: "Inventory", icon: ShoppingCart },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
-    { href: "/sales/pos", label: "POS", icon: Zap },
+    { href: "/pos", label: "POS", icon: Zap },
     { href: "/reports", label: "Reports", icon: BarChart3 },
+    ...(user.role === "admin" || user.role === "manager"
+      ? [{ href: "/costs", label: "Costs", icon: ReceiptText }]
+      : []),
     ...(user.role === "admin"
       ? [
-          { href: "/admin/users", label: "User Approvals", icon: Users },
+          { href: "/users", label: "User Approvals", icon: Users },
           { href: "/admin", label: "Admin Panel", icon: Settings },
         ]
       : []),

@@ -9,11 +9,14 @@ const router = express.Router()
 // Get all inventory (for current shop)
 router.get("/", verifyToken, async (req, res) => {
   try {
+    const { shopId } = req.query
     const user = await User.findById(req.user.id).select("shop role")
     
     const query = {}
     if (user.role !== "admin") {
       query.shop = user.shop
+    } else if (shopId) {
+      query.shop = shopId
     }
 
     const inventory = await Inventory.find(query)

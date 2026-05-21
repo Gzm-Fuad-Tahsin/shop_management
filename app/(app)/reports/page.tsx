@@ -1,124 +1,88 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
 import { apiCall } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
-import { Download, Loader2 } from "lucide-react"
 
-interface SalesData {
-  date: string
-  amount: number
-  count: number
+interface Shop {
+  _id: string
+  name: string
 }
 
-interface CategoryData {
-  name: string
-  value: number
-  quantity?: number
+interface MonthlyReport {
+  month: string
+  totals: {
+    revenue: number
+    costPrice: number
+    profit: number
+    expenses: number
+    netBalance: number
+    cashRevenue: number
+    bankRevenue: number
+  }
+  dailySummary: Array<{
+    date: string
+    revenue: number
+    costPrice: number
+    profit: number
+    expenses: number
+    netBalance: number
+    cashAmount: number
+    bankAmount: number
+  }>
 }
 
 export default function ReportsPage() {
   const { user } = useAuth()
-  const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-  )
-  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0])
-  const [salesData, setSalesData] = useState<SalesData[]>([])
-  const [categorySalesData, setCategorySalesData] = useState<CategoryData[]>([])
-  const [revenueByShop, setRevenueByShop] = useState<CategoryData[]>([])
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [paymentType, setPaymentType] = useState("all")
+  const [shopId, setShopId] = useState("all")
+  const [findDate, setFindDate] = useState("")
+  const [shops, setShops] = useState<Shop[]>([])
+  const [data, setData] = useState<MonthlyReport | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
-
-  useEffect(() => {
-    fetchReportData()
-  }, [startDate, endDate])
-
-  const fetchReportData = async () => {
+  const fetchData = async () => {
+    setIsLoading(true)
     try {
-      setIsLoading(true)
+      const params = new URLSearchParams({ month })
+      if (paymentType !== "all") params.set("paymentType", paymentType)
+      if (user?.role === "admin" && shopId !== "all") params.set("shopId", shopId)
 
-      // Fetch category sales
-      const categoryResponse = await apiCall("/api/dashboard/category-sales")
-      const categoryData = await categoryResponse.json()
-      setCategorySalesData(categoryData)
-
-      // Fetch revenue by shop if admin
-      if (user?.role === "admin") {
-        const revenueResponse = await apiCall("/api/dashboard/revenue-by-shop")
-        const revenueData = await revenueResponse.json()
-        setRevenueByShop(revenueData)
-      }
-
-      // Fetch sales data
-      const salesResponse = await apiCall(`/api/sales/range?startDate=${startDate}&endDate=${endDate}`)
-      const sales = await salesResponse.json()
-
-      // Process sales by date
-      const salesByDate: Record<string, { amount: number; count: number }> = {}
-      sales.forEach((sale: { totalAmount: number; createdAt: string }) => {
-        const date = new Date(sale.createdAt).toLocaleDateString()
-        if (!salesByDate[date]) {
-          salesByDate[date] = { amount: 0, count: 0 }
-        }
-        salesByDate[date].amount += sale.totalAmount
-        salesByDate[date].count += 1
-      })
-
-      const processedSalesData = Object.entries(salesByDate)
-        .map(([date, { amount, count }]) => ({
-          date,
-          amount: Math.round(amount),
-          count,
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-      setSalesData(processedSalesData)
+      const response = await apiCall(`/api/v1/reports/monthly?${params.toString()}`)
+      const report = await response.json()
+      setData(report)
     } catch (error) {
-      console.error("Failed to fetch report data:", error)
+      console.error("Failed to fetch monthly reports:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const totalSales = salesData.reduce((sum, item) => sum + item.amount, 0)
-  const totalTransactions = salesData.reduce((sum, item) => sum + item.count, 0)
-  const averageTransaction = totalTransactions > 0 ? totalSales / totalTransactions : 0
-
-  const handleExport = () => {
-    const csv = [
-      ["Date", "Sales Amount", "Transactions"],
-      ...salesData.map((item) => [item.date, item.amount, item.count]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
-
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "sales-report.csv"
-    a.click()
+  const fetchShops = async () => {
+    if (user?.role !== "admin") return
+    const response = await apiCall("/api/shops")
+    const shopsData = await response.json()
+    setShops(shopsData)
   }
+
+  useEffect(() => {
+    fetchShops()
+  }, [user?.role])
+
+  useEffect(() => {
+    fetchData()
+  }, [month, paymentType, shopId, user?.role])
+
+  const selectedDay = useMemo(() => {
+    if (!findDate || !data?.dailySummary) return null
+    return data.dailySummary.find((row) => row.date === findDate) || null
+  }, [findDate, data])
 
   if (isLoading) {
     return (
@@ -129,213 +93,106 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="p-8 space-y-6">
+      <div>
         <h1 className="text-3xl font-bold">Reports</h1>
-        <p className="text-muted-foreground mt-1">
-          {user?.role === "admin" ? "All Shops Analytics" : "Your Shop Analytics"}
-        </p>
+        <p className="text-muted-foreground mt-1">Monthly revenue, profit, expenses and net balance</p>
       </div>
 
-      {/* Date Range Filter */}
-      <Card className="mb-6">
+      <Card>
         <CardContent className="pt-6">
-          <div className="flex items-end gap-4 flex-wrap">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="mt-1"
-              />
+              <Label htmlFor="month">Month</Label>
+              <Input id="month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="mt-1"
-              />
+              <Label>Payment Type</Label>
+              <Select value={paymentType} onValueChange={setPaymentType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank">Bank</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button onClick={handleExport} variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
+            {user?.role === "admin" && (
+              <div>
+                <Label>Shop</Label>
+                <Select value={shopId} onValueChange={setShopId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Shops</SelectItem>
+                    {shops.map((shop) => <SelectItem key={shop._id} value={shop._id}>{shop.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="findDate">Find Any Day</Label>
+              <Input id="findDate" type="date" value={findDate} onChange={(e) => setFindDate(e.target.value)} />
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {selectedDay && (
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalSales.toLocaleString()}</div>
+          <CardHeader><CardTitle>{selectedDay.date} Snapshot</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>Cash: <strong>${(selectedDay.cashAmount || 0).toFixed(2)}</strong></div>
+            <div>Bank: <strong>${(selectedDay.bankAmount || 0).toFixed(2)}</strong></div>
+            <div>Revenue: <strong>${(selectedDay.revenue || 0).toFixed(2)}</strong></div>
+            <div>Net Balance: <strong>${(selectedDay.netBalance || 0).toFixed(2)}</strong></div>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalTransactions}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Average Transaction</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${averageTransaction.toFixed(2)}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Revenue</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.revenue || 0).toFixed(2)}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Profit</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.profit || 0).toFixed(2)}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Expenses</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.expenses || 0).toFixed(2)}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Net Balance</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.netBalance || 0).toFixed(2)}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Cash Revenue</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.cashRevenue || 0).toFixed(2)}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Bank Revenue</CardTitle></CardHeader><CardContent className="text-xl font-semibold">${(data?.totals.bankRevenue || 0).toFixed(2)}</CardContent></Card>
       </div>
 
-      {/* Charts for Manager: One pie chart for category sales */}
-      {user?.role === "manager" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => `$${value}`} />
-                  <Legend />
-                  <Line type="monotone" dataKey="amount" stroke="#3b82f6" name="Sales Amount" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {categorySalesData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categorySalesData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name} $${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categorySalesData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `$${value}`} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">No sales data available</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Charts for Admin: Two pie charts (category sales and revenue by shop) */}
-      {user?.role === "admin" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {categorySalesData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categorySalesData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name} $${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categorySalesData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `$${value}`} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">No sales data available</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue by Shop</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {revenueByShop.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={revenueByShop}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(entry) => `${entry.name} $${entry.value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {revenueByShop.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `$${value}`} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">No data available</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Transactions Chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily Transactions</CardTitle>
+          <CardTitle>Daily Monthly Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="count" fill="#10b981" name="Transactions" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Date</th>
+                  <th className="text-right py-2">Cash</th>
+                  <th className="text-right py-2">Bank</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Cost Price</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">Expenses</th>
+                  <th className="text-right py-2">Net Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.dailySummary?.map((row) => (
+                  <tr key={row.date} className="border-b">
+                    <td className="py-2">{row.date}</td>
+                    <td className="py-2 text-right">${(row.cashAmount || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.bankAmount || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.revenue || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.costPrice || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.profit || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.expenses || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${(row.netBalance || 0).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>

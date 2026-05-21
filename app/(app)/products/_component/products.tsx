@@ -9,6 +9,9 @@ import { apiCall } from "@/lib/api"
 import { EnhancedProductDialog } from "@/components/enhanced-product-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useAuth } from "@/hooks/use-auth"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Product {
   _id?: string
@@ -21,25 +24,51 @@ interface Product {
   color?: string
   specifications?: string
   isActive?: boolean
+  shop?: { _id: string; name: string }
+}
+
+interface Shop {
+  _id: string
+  name: string
 }
 
 export default function ProductsPage() {
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [shops, setShops] = useState<Shop[]>([])
+  const [selectedShop, setSelectedShop] = useState("all")
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
   useEffect(() => {
+    if (user?.role === "admin") fetchShops()
+  }, [user?.role])
+
+  useEffect(() => {
     fetchProducts()
-  }, [])
+  }, [selectedShop, user?.role])
+
+  const fetchShops = async () => {
+    const response = await apiCall("/api/shops")
+    const data = await response.json()
+    setShops(data || [])
+  }
 
   const fetchProducts = async () => {
     try {
       setIsLoading(true)
-      const response = await apiCall("/api/products")
+      const query = user?.role === "admin" && selectedShop !== "all" ? `?shopId=${selectedShop}` : ""
+      const response = await apiCall(`/api/products${query}`)
       const data = await response.json()
-      setProducts(data.products || data)
+      const baseProducts = data.products || data
+      setProducts(
+        user?.role === "admin" && selectedShop !== "all"
+          ? baseProducts.filter((product: Product) => product.shop?._id === selectedShop)
+          : baseProducts,
+      )
     } catch (error) {
       console.error("Failed to fetch products:", error)
     } finally {
@@ -99,10 +128,7 @@ export default function ProductsPage() {
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground mt-1">Manage your product catalog with full details</p>
         </div>
-        <Button
-          onClick={() => handleOpenDialog()}
-          className="gap-2"
-        >
+        <Button onClick={() => handleOpenDialog()} className="gap-2">
           <Plus className="w-4 h-4" />
           Add Product
         </Button>
@@ -110,14 +136,25 @@ export default function ProductsPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <Search className="w-5 h-5 text-muted-foreground" />
             <Input
               placeholder="Search by name, SKU, or barcode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
+              className="flex-1 min-w-[220px]"
             />
+            {user?.role === "admin" && (
+              <Select value={selectedShop} onValueChange={setSelectedShop}>
+                <SelectTrigger className="w-[220px]"><SelectValue placeholder="Filter by shop" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shops</SelectItem>
+                  {shops.map((shop) => (
+                    <SelectItem key={shop._id} value={shop._id}>{shop.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -131,6 +168,7 @@ export default function ProductsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    {user?.role === "admin" && <TableHead>Shop</TableHead>}
                     <TableHead>SKU</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead>Category</TableHead>
@@ -142,8 +180,13 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.map((product) => (
-                    <TableRow key={product._id} className={!product.isActive ? "opacity-50" : ""}>
+                    <TableRow
+                      key={product._id}
+                      className={`${!product.isActive ? "opacity-50" : ""} cursor-pointer`}
+                      onClick={() => setSelectedProduct(product)}
+                    >
                       <TableCell className="font-medium">{product.name}</TableCell>
+                      {user?.role === "admin" && <TableCell>{product.shop?.name || "-"}</TableCell>}
                       <TableCell>{product.sku}</TableCell>
                       <TableCell>
                         {product.barcode ? (
@@ -162,12 +205,8 @@ export default function ProductsPage() {
                           {profit(product.retailPrice, product.costPrice)}%
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(product)}
-                        >
+                      <TableCell className="text-right space-x-1" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(product)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => product._id && handleDelete(product._id)}>
@@ -183,12 +222,31 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      <EnhancedProductDialog
-        open={isDialogOpen}
-        onOpenChange={handleCloseDialog}
-        product={editingProduct}
-        onSuccess={handleSuccess}
-      />
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Product Details</DialogTitle>
+          </DialogHeader>
+          {selectedProduct && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Name</span><span>{selectedProduct.name}</span></div>
+              <div className="flex justify-between"><span>Shop</span><span>{selectedProduct.shop?.name || "-"}</span></div>
+              <div className="flex justify-between"><span>SKU</span><span>{selectedProduct.sku}</span></div>
+              <div className="flex justify-between"><span>Barcode</span><span>{selectedProduct.barcode || "-"}</span></div>
+              <div className="flex justify-between"><span>Cost Price</span><span>${selectedProduct.costPrice.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Selling Price</span><span>${selectedProduct.retailPrice.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Category</span><span>{categoryLabel(selectedProduct.category)}</span></div>
+              <div className="flex justify-between"><span>Color</span><span>{selectedProduct.color || "-"}</span></div>
+              <div><span className="font-medium">Specifications: </span>{selectedProduct.specifications || "-"}</div>
+              <Button className="w-full mt-2" onClick={() => { setSelectedProduct(null); handleOpenDialog(selectedProduct) }}>
+                Edit Product
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <EnhancedProductDialog open={isDialogOpen} onOpenChange={handleCloseDialog} product={editingProduct} onSuccess={handleSuccess} />
     </div>
   )
 }

@@ -10,7 +10,7 @@ const router = express.Router()
 // Get all sales with pagination (for current shop)
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const { page = 1, limit = 50, startDate, endDate } = req.query
+    const { page = 1, limit = 50, startDate, endDate, shopId } = req.query
     const skip = (page - 1) * limit
 
     const user = await User.findById(req.user.id).select("shop role")
@@ -20,6 +20,8 @@ router.get("/", verifyToken, async (req, res) => {
     // Filter by shop
     if (user.role !== "admin") {
       query.shop = user.shop
+    } else if (shopId) {
+      query.shop = shopId
     }
 
     if (startDate || endDate) {
@@ -48,7 +50,7 @@ router.get("/", verifyToken, async (req, res) => {
 // Get sales by date range
 router.get("/range", verifyToken, async (req, res) => {
   try {
-    const { startDate, endDate } = req.query
+    const { startDate, endDate, shopId } = req.query
     const user = await User.findById(req.user.id).select("shop role")
 
     const query = {
@@ -60,6 +62,8 @@ router.get("/range", verifyToken, async (req, res) => {
 
     if (user.role !== "admin") {
       query.shop = user.shop
+    } else if (shopId) {
+      query.shop = shopId
     }
 
     const sales = await Sale.find(query)
@@ -85,6 +89,7 @@ router.post("/", verifyToken, async (req, res) => {
       taxAmount,
       discountAmount,
       paymentMethod,
+      paymentDistribution,
       paymentStatus = "completed",
       saleType = "retail",
       notes,
@@ -98,6 +103,15 @@ router.post("/", verifyToken, async (req, res) => {
 
     if (!totalAmount || !paymentMethod) {
       return res.status(400).json({ message: "Total amount and payment method are required" })
+    }
+
+    if (paymentDistribution && (paymentDistribution.cash !== undefined || paymentDistribution.bank !== undefined)) {
+      const cash = Number(paymentDistribution.cash || 0)
+      const bank = Number(paymentDistribution.bank || 0)
+      const diff = Math.abs(cash + bank - Number(totalAmount))
+      if (diff > 0.01) {
+        return res.status(400).json({ message: "Cash and bank distribution must match total amount" })
+      }
     }
 
     // Get user's shop
@@ -160,6 +174,15 @@ router.post("/", verifyToken, async (req, res) => {
       taxAmount,
       discountAmount,
       paymentMethod,
+      paymentDistribution:
+        paymentDistribution && (paymentDistribution.cash !== undefined || paymentDistribution.bank !== undefined)
+          ? {
+              cash: Number(paymentDistribution.cash || 0),
+              bank: Number(paymentDistribution.bank || 0),
+            }
+          : paymentMethod === "cash"
+            ? { cash: Number(totalAmount), bank: 0 }
+            : { cash: 0, bank: Number(totalAmount) },
       paymentStatus,
       saleType,
       notes,

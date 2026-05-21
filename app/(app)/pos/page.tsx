@@ -38,20 +38,24 @@ interface Customer {
   customerType: string
 }
 
+interface PaymentSplit {
+  id: string
+  type: "cash" | "bank"
+  amount: number
+}
+
 export default function POSPage() {
   const [barcodeInput, setBarcodeInput] = useState("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [paymentMethod, setPaymentMethod] = useState("cash")
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>([{ id: "row-1", type: "cash", amount: 0 }])
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showCustomerDialog, setShowCustomerDialog] = useState(false)
   const [newCustomerData, setNewCustomerData] = useState({ name: "", phone: "", email: "" })
   const barcodeRef = useRef<HTMLInputElement>(null)
-
-  const paymentMethods = ["cash", "card", "check", "online", "upi"]
 
   useEffect(() => {
     fetchCustomers()
@@ -170,6 +174,43 @@ export default function POSPage() {
   }
   totals.total = totals.subtotal + totals.tax - totals.discount
 
+  useEffect(() => {
+    setPaymentSplits((prev) =>
+      prev.map((split, index) =>
+        index === 0 && prev.length === 1 ? { ...split, amount: Number(totals.total.toFixed(2)) } : split,
+      ),
+    )
+  }, [totals.total])
+
+  const allocatedAmount = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
+  const remainingAmount = Number((totals.total - allocatedAmount).toFixed(2))
+  const isSplitTotalValid = Math.abs(remainingAmount) <= 0.01 && paymentSplits.length > 0
+
+  const updatePaymentSplit = (id: string, field: "type" | "amount", value: string) => {
+    setPaymentSplits((prev) =>
+      prev.map((split) =>
+        split.id === id
+          ? {
+              ...split,
+              [field]: field === "amount" ? Number.parseFloat(value || "0") : value,
+            }
+          : split,
+      ),
+    )
+  }
+
+  const addPaymentSplit = () => {
+    if (remainingAmount <= 0) return
+    setPaymentSplits((prev) => [
+      ...prev,
+      { id: `row-${Date.now()}`, type: "bank", amount: Number(remainingAmount.toFixed(2)) },
+    ])
+  }
+
+  const removePaymentSplit = (id: string) => {
+    setPaymentSplits((prev) => (prev.length === 1 ? prev : prev.filter((split) => split.id !== id)))
+  }
+
   const handleAddCustomer = async () => {
     if (!newCustomerData.name || !newCustomerData.phone) {
       setError("Name and phone are required")
@@ -200,8 +241,8 @@ export default function POSPage() {
       return
     }
 
-    if (!paymentMethod) {
-      setError("Select payment method")
+    if (!isSplitTotalValid) {
+      setError("Payment split must equal total amount")
       return
     }
 
@@ -209,6 +250,14 @@ export default function POSPage() {
     setError("")
 
     try {
+      const totalCash = paymentSplits
+        .filter((split) => split.type === "cash")
+        .reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
+      const totalBank = paymentSplits
+        .filter((split) => split.type === "bank")
+        .reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
+      const paymentMethod = totalCash > 0 && totalBank > 0 ? "mixed" : totalCash > 0 ? "cash" : "bank"
+
       const saleData = {
         items: cartItems.map((item) => ({
           productId: item.product._id,
@@ -225,6 +274,7 @@ export default function POSPage() {
         taxAmount: totals.tax,
         discountAmount: totals.discount,
         paymentMethod,
+        paymentDistribution: { cash: Number(totalCash.toFixed(2)), bank: Number(totalBank.toFixed(2)) },
         saleType: selectedCustomer?.customerType || "retail",
       }
 
@@ -242,7 +292,7 @@ export default function POSPage() {
       setSuccess(`Sale completed! Invoice: ${sale.saleNumber}`)
       setCartItems([])
       setSelectedCustomer(null)
-      setPaymentMethod("cash")
+      setPaymentSplits([{ id: "row-1", type: "cash", amount: 0 }])
       barcodeRef.current?.focus()
 
       setTimeout(() => setSuccess(""), 3000)
@@ -449,26 +499,51 @@ export default function POSPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentMethod">Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        {method.charAt(0).toUpperCase() + method.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Payment Split</Label>
+                <div className="space-y-2">
+                  {paymentSplits.map((split) => (
+                    <div key={split.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                      <Select value={split.type} onValueChange={(value) => updatePaymentSplit(split.id, "type", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="bank">Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={split.amount}
+                        onChange={(e) => updatePaymentSplit(split.id, "amount", e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removePaymentSplit(split.id)}
+                        disabled={paymentSplits.length === 1}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Remaining: ${Math.max(0, remainingAmount).toFixed(2)}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={addPaymentSplit} disabled={remainingAmount <= 0}>
+                    Add Payment
+                  </Button>
+                </div>
               </div>
 
               <Button
                 size="lg"
                 className="w-full"
                 onClick={handleCompleteSale}
-                disabled={isLoading || cartItems.length === 0}
+                disabled={isLoading || cartItems.length === 0 || !isSplitTotalValid}
               >
                 Complete Sale (${totals.total.toFixed(2)})
               </Button>
@@ -479,7 +554,7 @@ export default function POSPage() {
                 onClick={() => {
                   setCartItems([])
                   setSelectedCustomer(null)
-                  setPaymentMethod("cash")
+                  setPaymentSplits([{ id: "row-1", type: "cash", amount: 0 }])
                 }}
               >
                 Clear All

@@ -32,10 +32,13 @@ export default function RootLayout({
           content="width=device-width, initial-scale=1.0, viewport-fit=cover"
         />
         <meta name="theme-color" content="#000000" />
-        <link rel="manifest" href="/manifest.json" />
+        {process.env.NODE_ENV === "production" && <link rel="manifest" href="/manifest.json" />}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js'); }); }`,
+            __html:
+              process.env.NODE_ENV === "production"
+                ? `if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js'); }); }`
+                : `if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then((registrations) => { registrations.forEach((registration) => registration.unregister()); }); }`,
           }}
         />
       </head>

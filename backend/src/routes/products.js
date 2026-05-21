@@ -9,7 +9,7 @@ const router = express.Router()
 // Get all products with pagination (for current user's shop)
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const { page = 1, limit = 50, search, category } = req.query
+    const { page = 1, limit = 50, search, category, shopId } = req.query
     const skip = (page - 1) * limit
 
     // Get user's shop
@@ -23,6 +23,8 @@ router.get("/", verifyToken, async (req, res) => {
     // Filter by shop (admin can see all, others see only their shop)
     if (user.role !== "admin") {
       query.shop = user.shop
+    } else if (shopId) {
+      query.shop = shopId
     }
 
     if (search) {
